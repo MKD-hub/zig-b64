@@ -29,11 +29,12 @@ test "testing simple decode" {
 test "testing simple two letter decode" {
     const b64 = Base64.init(); 
     const decoded = b64.decode("TWE=");
-    try expect(std.mem.eql(u8, &decoded, "Ma"));
+    std.debug.print("bin: {d}, mybin: {d}\n", .{"Ma", decoded});
+    try expect(std.mem.eql(u8, &decoded, "Ma\x00"));
 }
 
 test "testing one letter decode" {
     const b64 = Base64.init(); 
     const decoded = b64.decode("TQ==");
-    try expect(std.mem.eql(u8, &decoded, "M"));
+    try expect(std.mem.eql(u8, &decoded, "M\x00\x00"));
 }

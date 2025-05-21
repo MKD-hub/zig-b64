@@ -49,11 +49,13 @@ pub const Base64 = struct {
             groups[index] = self._index_at(byte);
         }
 
-        return .{
+        const combinedArray: [3]u8 = .{
             (groups[0] << 2) | (groups[1] >> 4),
             (groups[1] << 4) | (groups[2] >> 2),
             (groups[2] << 6) | (groups[3])
         };
+
+        return combinedArray;
     }
 
     pub fn encode(self: Base64, word: []const u8) [4]u8 {
@@ -108,4 +110,3 @@ pub const Base64 = struct {
     }
 
 };
-
