@@ -1,9 +1,45 @@
 const std = @import("std");
+const Base64 = @import("base64.zig").Base64;
 
+pub fn writeEncodingToFile(comptime N: usize, allocator: std.mem.Allocator, outputFilename: []const u8, buffer: *std.ArrayList([N]u8)) !void {
+    var file = try std.fs.cwd().createFile(outputFilename, .{});
+    defer file.close();
 
-pub fn isFileBinary(fileExtension: []const u8) bool {
-    return std.mem.eql(u8, fileExtension, ".txt");
+    const flat = try flattenArray(N, allocator , buffer);
+
+    try file.writeAll(flat.items);
 }
+
+pub fn encodeData(data: []const u8, b64: *const Base64, buf:  *std.ArrayList([4]u8)) !void {
+    var counter: usize = 0;
+
+    while (counter + 3 <= data.len) : (counter += 3) {
+        const chunk = data[counter..counter + 3];
+        const encoded = b64.encode(chunk);
+        try buf.append(encoded);
+    }
+
+    if (counter < data.len) {
+        const encoded = b64.encode(data[counter..]);
+        try buf.append(encoded);
+    }
+}
+
+pub fn decodeData(data: []const u8, b64: *const Base64, buf:  *std.ArrayList([3]u8)) !void {
+    var counter: usize = 0;
+
+    while (counter + 4 <= data.len) : (counter += 4) {
+        const chunk = data[counter..counter + 4];
+        const decoded = b64.decode(chunk);
+        try buf.append(decoded);
+    }
+
+    if (counter < data.len) {
+        const encoded = b64.decode(data[counter..]);
+        try buf.append(encoded);
+    }
+}
+
 
 pub fn getBinaryDataFromFile(allocator: std.mem.Allocator, filename: []const u8) ![]const u8 {
     var file = try std.fs.cwd().openFile(filename, .{});
@@ -19,37 +55,10 @@ pub fn getBinaryDataFromFile(allocator: std.mem.Allocator, filename: []const u8)
     const heap_buffer = try allocator.alloc(u8, bytes_read);
     std.mem.copyForwards(u8, heap_buffer, buffer[0..bytes_read]);
 
-    // don't do this in future. maybe_data is allocated to the stack of this
-    // function and once it exits the data is removed, I was returning a
-    // pointer to a dead piece of data
-    // Keeping this for future reference
-
-    //return maybe_data orelse "";
-
     return heap_buffer;
 }
 
-pub fn concatenateSmallString(buff: *[255]u8, str1: []const u8, str2: []const u8) ![]const u8 {
-    // 255 size array since I don't expect filenames to be too large. But also,
-    // preferring to put on stack rather than on heap for this simple
-    // operation. Might refactor later.
-
-    //var combined_buffer: [255]u8 = undefined; // Bad, can't slice from this and return slice since this gets deallocated and the slice will be left dangling
-
-    const combined_len = (str1.len + str2.len) - 4; // -4 because I want to remove the .txt and append the .b64
-    if (combined_len > buff.len) return error.StringTooLong;
-
-    const concatenated_string =  buff[0..combined_len];
-    std.mem.copyForwards(u8, concatenated_string[0..str1.len], str1);
-    std.mem.copyForwards(u8, concatenated_string[str1.len-4..], str2);
-
-    std.debug.print("{s}\n", .{concatenated_string});
-
-    return concatenated_string;
-}
-
-
-pub fn flattenArray(allocator: std.mem.Allocator, buffer: *std.ArrayList([4]u8)) !std.ArrayList(u8) {
+fn flattenArray(comptime N: usize, allocator: std.mem.Allocator, buffer: *std.ArrayList([N]u8)) !std.ArrayList(u8) {
     var flat = std.ArrayList(u8).init(allocator);
     //defer flat.deinit();
     //commented out the above since the program terminates after this and the allocated memory by the page allocator will be "recycled" by the OS.
@@ -62,4 +71,27 @@ pub fn flattenArray(allocator: std.mem.Allocator, buffer: *std.ArrayList([4]u8))
     return flat;
 }
 
+// The function below is deprecated and replaced by getBinaryDataFromFile(...) because this function was only copying the first 1000 bytes of a file
+fn getDataFromFile(allocator: std.mem.Allocator, filename: []const u8) ![]const u8 {
+    var file = try std.fs.cwd().openFile(filename, .{});
+    defer file.close();
+    var buffered = std.io.bufferedReader(file.reader());
+    var bufreader = buffered.reader();
 
+    var buffer: [1000]u8 = undefined; // This is a stack buffer, very bad for exporting, copy result into heap buffer
+    @memset(buffer[0..], 0);
+
+    const maybe_data = try bufreader.readUntilDelimiterOrEof(buffer[0..], '\x00'); // readUntilDelimiterOrEof() is for text files, binary files might have the delimiter anywhere in the file
+    
+    const heap_buffer = try allocator.alloc(u8, maybe_data.?.len);
+    std.mem.copyForwards(u8, heap_buffer, maybe_data orelse "");
+
+    // don't do this in future. maybe_data is allocated to the stack of this
+    // function and once it exits the data is removed, I was returning a
+    // pointer to a dead piece of data
+    // Keeping this for future reference
+
+    //return maybe_data orelse "";
+
+    return heap_buffer;
+}
