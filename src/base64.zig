@@ -58,7 +58,7 @@ pub const Base64 = struct {
         return combinedArray;
     }
 
-    pub fn encode(self: Base64, word: []const u8) [4]u8 {
+    pub fn encode(self: Base64, chunk: []const u8) [4]u8 {
         // What this function does:
         // Recieves 24 bytes (3 ASCII characters)
         // convert to binary
@@ -79,7 +79,7 @@ pub const Base64 = struct {
     
         // same functionality in a loop
     
-        for (word, 0..) |byte, index| {
+        for (chunk, 0..) |byte, index| {
             groups[index] = (byte >> byteShifter[index]) | (leftover << leftOverShifts[index]); 
             leftover = byte & lastBits[index];
             counter = counter + 1;
